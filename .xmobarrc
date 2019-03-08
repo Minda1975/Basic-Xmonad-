@@ -1,0 +1,39 @@
+-- vim: ft=haskell
+Config { font = "xft:Liberation Mono:size=9:medium:antialias=true"
+       , bgColor = "black" --"#1d1f21" --"#1c1c1c"
+       , fgColor = "white"
+       , position = Top
+       --, position = TopSize C 100 35 -- use this if only using one monitor
+       --, position = Static { xpos = 0 , ypos = 0, width = 1920, height = 24 } --manually position bar to display on left monitor 
+       , lowerOnStart = False
+       , allDesktops = True
+       , overrideRedirect = False
+       , border = BottomBM 0
+       , borderColor = "black"
+       , commands = [ Run Cpu
+                          ["-L","3","-H","50","--normal","green","--high","red"] 10 
+                             
+                                  
+        -- cpu core temperature monitor
+        , Run CoreTemp       [ "--template" , "± <core0>°±<core1>°"
+                             , "--Low"      , "70"        -- units: °C
+                             , "--High"     , "80"        -- units: °C
+                             , "--low"      , "white"
+                             , "--normal"   , "green"
+                             , "--high"     , "red"
+                             ] 50
+                          
+                       
+        -- keyboard layout indicator
+        , Run Kbd            [ ("us(dvorak)" , "<fc=#ffffff>DV</fc>")
+                             , ("us"         , "<fc=#ffffff>US</fc>")
+                             ]                
+                           
+                    -- Date 
+                    , Run Date "%a %b %_d %Y %H:%M:%S" "date" 10
+                    , Run StdinReader
+                    ]
+       , sepChar = "%"
+       , alignSep = "}{"
+       , template = " %StdinReader% }{ %cpu% | %coretemp% | %date% | %kbd% "
+       }
