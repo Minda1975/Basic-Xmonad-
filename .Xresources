@@ -1,4 +1,4 @@
-#include ".xrdb/color/liontin"
+#include ".xrdb/color/codeshool"
 
 
 URxvt.font: xft:Liberation Mono:size=10 :antialias=true:autohint=false
