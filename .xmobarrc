@@ -1,8 +1,8 @@
 -- vim: ft=haskell
-Config { font = "xft:Liberation Mono:size=9:medium:antialias=true"
-       , bgColor = "black" --"#1d1f21" --"#1c1c1c"
-       , fgColor = "white"
-       , position = Top
+Config { font = "xft:Liberation Mono:size=12:medium:antialias=true"
+       , bgColor = "#2d2c28" 
+       , fgColor = "#a4a6ab"
+       , position = TopSize C 100 25
        --, position = TopSize C 100 35 -- use this if only using one monitor
        --, position = Static { xpos = 0 , ypos = 0, width = 1920, height = 24 } --manually position bar to display on left monitor 
        , lowerOnStart = False
@@ -11,22 +11,24 @@ Config { font = "xft:Liberation Mono:size=9:medium:antialias=true"
        , border = BottomBM 0
        , borderColor = "black"
        , commands = [ Run Cpu
-                          ["-L","3","-H","50","--normal","green","--high","red"] 10 
+                          ["-L","3","-H","50","--normal","#559a6a","--high","#c4756e"] 10 
                              
                                   
         -- cpu core temperature monitor
         , Run CoreTemp       [ "--template" , "± <core0>°±<core1>°"
                              , "--Low"      , "70"        -- units: °C
                              , "--High"     , "80"        -- units: °C
-                             , "--low"      , "white"
-                             , "--normal"   , "green"
-                             , "--high"     , "red"
+                             , "--low"      , "#559a6a"
+                             , "--high"     , "#c4756e"
                              ] 50
                           
+        
+        -- music indicator                    
+        , Run Com "/home/mindaugas/.scripts/mpd" [] "mymusic" 10
                        
         -- keyboard layout indicator
-        , Run Kbd            [ ("us(dvorak)" , "<fc=#ffffff>DV</fc>")
-                             , ("us"         , "<fc=#ffffff>US</fc>")
+        , Run Kbd            [ ("us(dvorak)" , "<fc=#a4a6ab>DV</fc>")
+                             , ("us"         , "<fc=#a4a6ab>US</fc>")
                              ]                
                            
                     -- Date 
@@ -35,5 +37,5 @@ Config { font = "xft:Liberation Mono:size=9:medium:antialias=true"
                     ]
        , sepChar = "%"
        , alignSep = "}{"
-       , template = " %StdinReader% }{ %cpu% | %coretemp% | %date% | %kbd% "
+       , template = " %StdinReader% }{ %mymusic% %cpu% | %coretemp% | %date% | %kbd% "
        }
