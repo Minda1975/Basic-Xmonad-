@@ -1,15 +1,14 @@
 import XMonad
+import XMonad.Actions.NoBorders
 import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.ManageDocks
 import XMonad.Util.Run(spawnPipe)
 import XMonad.Hooks.EwmhDesktops
-import XMonad.Layout.BinarySpacePartition (emptyBSP)
+import XMonad.Layout.BinarySpacePartition
 import XMonad.Layout.Maximize
-import XMonad.Layout.Spacing
-import XMonad.Layout.Grid
-import XMonad.Layout.NoBorders
+import XMonad.Layout.ResizableTile (ResizableTall(..))
+import XMonad.Layout.ToggleLayouts (ToggleLayout(..), toggleLayouts)
 import XMonad.Hooks.ManageHelpers
-import XMonad.Layout.Column
 import XMonad.Util.EZConfig
 import System.IO
 import XMonad.Prompt
@@ -21,21 +20,21 @@ import System.Exit
 main = do
   xmproc <- spawnPipe "/usr/bin/xmobar /home/mindaugas/.xmobarrc"
   xmonad $ ewmh def
-    { terminal = "urxvt"
+    { terminal = "urxvtc"
     , modMask = mod4Mask
-    , normalBorderColor = "#a4a6ab"
-    , focusedBorderColor = "#559a6a"
+    , normalBorderColor = "#7c818c"
+    , focusedBorderColor = "#5294e2"
     , borderWidth = 2
     , manageHook = manageDocks 
-    , layoutHook = smartSpacing 7 $ avoidStruts $ smartBorders $ myLayouts
+    , layoutHook = avoidStruts $ myLayouts
     , handleEventHook = fullscreenEventHook <+> docksEventHook
     , logHook = dynamicLogWithPP xmobarPP
                 { ppOutput = hPutStrLn xmproc
-                , ppCurrent = xmobarColor "#b577ac" "" . wrap "[" "]"
-                , ppUrgent = xmobarColor "#c4756e" "" . wrap "*" "*"
-                , ppLayout = xmobarColor "#cab775" ""
-                , ppTitle = xmobarColor "#559a6a" "" . shorten 50
-                , ppSep = "<fc=#6a8dca> | </fc>"
+                , ppCurrent = xmobarColor "#5294e2" "" . wrap "[" "]"
+                , ppUrgent = xmobarColor "red" "" . wrap "*" "*"
+                , ppLayout = xmobarColor "#7c818c" ""
+                , ppTitle = xmobarColor "#5294e2" "" . shorten 50
+                , ppSep = "<fc=#7c818c> | </fc>"
                 }
     }
 
@@ -43,13 +42,23 @@ main = do
       [ 
         ("M-S-q",   confirmPrompt myXPConfig "exit" (io exitSuccess))
       , ("M-p",     shellPrompt myXPConfig)
-      , ("M-S-p", spawn "/home/mindaugas/.scripts/rofia")
-      , ("M-<Esc>", withFocused (sendMessage . maximizeRestore))
+      , ("M-<Esc>", sendMessage (Toggle "Full"))
       , ("M-S-g",   gotoMenu)
       , ("M-S-b",   bringMenu)
       , ("M-w", spawn "/home/mindaugas/.scripts/screeny")
       , ("M-r", spawn "/home/mindaugas/.scripts/shutdown.sh")
       , ("M-x", spawn "/home/mindaugas/.scripts/mpdmenu")
+      , ("M-g", withFocused toggleBorder)
+      , ("M-M1-<Left>",    sendMessage $ ExpandTowards L)
+      , ("M-M1-<Right>",   sendMessage $ ShrinkFrom L)
+      , ("M-M1-<Up>",      sendMessage $ ExpandTowards U)
+      , ("M-M1-<Down>",    sendMessage $ ShrinkFrom U)
+      , ("M-M1-C-<Left>",  sendMessage $ ShrinkFrom R)
+      , ("M-M1-C-<Right>", sendMessage $ ExpandTowards R)
+      , ("M-M1-C-<Up>",    sendMessage $ ShrinkFrom D)
+      , ("M-M1-C-<Down>",  sendMessage $ ExpandTowards D)
+      , ("M-s",            sendMessage $ Swap)
+      , ("M-M1-s",         sendMessage $ Rotate)
       ]
 --------------------------------------------------------------------------------
 -- | Customize layouts.
@@ -58,15 +67,17 @@ main = do
 -- and 'BinarySpacePartition'.  You can also use the 'M-<Esc>' key
 -- binding defined above to toggle between the current layout and a
 -- full screen layout.
-myLayouts = maximizeWithPadding 10 (Tall 1 (3/100) (1/2)) ||| emptyBSP ||| Column 1.6
+myLayouts = toggleLayouts (Full) others
+  where
+others = ResizableTall 1 (1.5/100) (3/5) [] ||| emptyBSP
 
 myXPConfig = def
   { position          = Top
   , alwaysHighlight   = True
-  ,fgColor            = "#a4a6ab"
-  , bgColor           = "#2d2c28"
-  , bgHLight    = "#a4a6ab"
-  , fgHLight    = "#2d2c28"
+  ,fgColor            = "#7c818c"
+  , bgColor           = "#383c4a"
+  , bgHLight    = "#5294e2"
+  , fgHLight    = "#383c4a"
   , promptBorderWidth = 0
-  , font              = "xft:InconsolataGo Nerd Font:size=10"
+  , font              = "xft:Liberation Sans:size=10"
   }

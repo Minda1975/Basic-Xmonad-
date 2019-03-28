@@ -5,11 +5,9 @@ xrdb -merge .Xresources
 
     
 #Apps
-urxvtd &
+urxvtd -q -o -f &
 xsetroot -cursor_name left_ptr &
-feh --bg-fill /home/mindaugas/Pictures/1.jpg &
-xsettingsd &
+hsetroot -center ~/.arc.jpg
 setxkbmap -layout "us,lt,ru" -option "grp:ctrl_shift_toggle"
-xautolock -time 10 -locker 'slock' &
 
 exec xmonad
