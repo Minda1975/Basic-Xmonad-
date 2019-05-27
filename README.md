@@ -6,4 +6,4 @@ Screenshots
 ![Screenshot](screen_1.png?raw=true "Terminals")
 ![Screenshot](screen_2.png?raw=true "Rofi")
 
-
+![Please do not theme this app](https://stopthemingmy.app/badge.svg)
