@@ -1,4 +1,4 @@
-It is Xmonad config with xmobar, a good starting point for more complex setups. I just added custom layouts (Maximize Tall, BSP, Column), some usefull scripts (in .scripts folder), color scheme Arc-Dark (for Xmonad and Xmobar), custom prompts etc.
+It is Xmonad config with xmobar. I just added custom layouts, scratchpads etc.
 
 Screenshots
 
@@ -6,4 +6,4 @@ Screenshots
 ![Screenshot](screen_1.png?raw=true "Terminals")
 ![Screenshot](screen_2.png?raw=true "Rofi")
 
-![Please do not theme this app](https://stopthemingmy.app/badge.svg)
+

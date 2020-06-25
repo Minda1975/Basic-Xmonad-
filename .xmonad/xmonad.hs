@@ -1,83 +1,195 @@
-import XMonad
-import XMonad.Actions.NoBorders
-import XMonad.Hooks.DynamicLog
-import XMonad.Hooks.ManageDocks
-import XMonad.Util.Run(spawnPipe)
-import XMonad.Hooks.EwmhDesktops
-import XMonad.Layout.BinarySpacePartition
-import XMonad.Layout.Maximize
-import XMonad.Layout.ResizableTile (ResizableTall(..))
-import XMonad.Layout.ToggleLayouts (ToggleLayout(..), toggleLayouts)
-import XMonad.Hooks.ManageHelpers
-import XMonad.Util.EZConfig
-import System.IO
-import XMonad.Prompt
-import XMonad.Prompt.ConfirmPrompt
-import XMonad.Actions.WindowBringer
-import XMonad.Prompt.Shell
+------------------------------------------------------------------------
+-- import
+------------------------------------------------------------------------
+
+import XMonad hiding ( (|||) ) -- jump to layout
+import XMonad.Layout.LayoutCombinators (JumpToLayout(..), (|||)) -- jump to layout
+import XMonad.Config.Desktop
 import System.Exit
+import qualified XMonad.StackSet as W
+
+-- data
+import Data.Char (isSpace)
+import Data.List
+import Data.Monoid
+import Data.Maybe (isJust)
+import Data.Ratio ((%)) -- for video
+import qualified Data.Map as M
+
+-- system
+import System.IO (hPutStrLn) -- for xmobar
+
+-- util
+import XMonad.Util.Run (safeSpawn, unsafeSpawn, runInTerm, spawnPipe)
+import XMonad.Util.SpawnOnce
+import XMonad.Util.EZConfig (additionalKeysP, additionalMouseBindings)  
+import XMonad.Util.NamedScratchpad
+import XMonad.Util.NamedWindows
+import XMonad.Util.WorkspaceCompare
+
+-- hooks
+import XMonad.Hooks.DynamicLog
+import XMonad.Hooks.ManageDocks (avoidStruts, docksStartupHook, manageDocks, ToggleStruts(..))
+import XMonad.Hooks.EwmhDesktops -- to show workspaces in application switchers
+import XMonad.Hooks.ManageHelpers (isFullscreen, isDialog,  doFullFloat, doCenterFloat, doRectFloat) 
+import XMonad.Hooks.Place (placeHook, withGaps, smart)
+import XMonad.Hooks.UrgencyHook
+
+-- actions
+import XMonad.Actions.CopyWindow -- for dwm window style tagging
+import XMonad.Actions.UpdatePointer -- update mouse postion
+
+-- layout 
+import XMonad.Layout.Renamed (renamed, Rename(Replace))
+import XMonad.Layout.Spacing
+import XMonad.Layout.GridVariants
+import XMonad.Layout.ResizableTile
+import XMonad.Layout.BinarySpacePartition
+import XMonad.Layout.NoBorders
+
+------------------------------------------------------------------------
+-- variables
+------------------------------------------------------------------------
+
+myModMask = mod4Mask -- Sets modkey to super/windows key
+myTerminal = "urxvtc" -- Sets default terminal
+myBorderWidth = 2 -- Sets border width for windows
+myNormalBorderColor = "#839496"
+myFocusedBorderColor = "#268BD2"
+myppCurrent = "#cb4b16"
+myppVisible = "#cb4b16"
+myppHidden = "#268bd2"
+myppHiddenNoWindows = "#93A1A1"
+myppTitle = "#FDF6E3"
+myppUrgent = "#DC322F"
+myWorkspaces = ["1","2","3","4","5","6","7","8","9"]
+windowCount = gets $ Just . show . length . W.integrate' . W.stack . W.workspace . W.current . windowset
+
+------------------------------------------------------------------------
+-- desktop notifications -- dunst package required
+------------------------------------------------------------------------
+
+data LibNotifyUrgencyHook = LibNotifyUrgencyHook deriving (Read, Show)
+
+instance UrgencyHook LibNotifyUrgencyHook where
+    urgencyHook LibNotifyUrgencyHook w = do
+        name     <- getName w
+        Just idx <- fmap (W.findTag w) $ gets windowset
+
+        safeSpawn "notify-send" [show name, "workspace " ++ idx]
+
+------------------------------------------------------------------------
+-- layout
+------------------------------------------------------------------------
+
+myLayout = avoidStruts (full ||| tiled ||| grid ||| bsp)
+  where
+     -- full
+     full = renamed [Replace "Full"] 
+          $ noBorders (Full)
+
+     -- tiled
+     tiled = renamed [Replace "Tall"] $ smartBorders
+           $ spacingRaw True (Border 10 0 10 0) True (Border 0 10 0 10) True 
+           $ ResizableTall 1 (3/100) (1/2) []
+
+     -- grid
+     grid = renamed [Replace "Grid"] $ smartBorders
+          $ spacingRaw True (Border 10 0 10 0) True (Border 0 10 0 10) True 
+          $ Grid (16/10)
+
+     -- bsp
+     bsp = renamed [Replace "BSP"] $ smartBorders
+         $ emptyBSP
+
+     -- The default number of windows in the master pane
+     nmaster = 1
+     
+     -- Default proportion of screen occupied by master pane
+     ratio   = 1/2
+
+     -- Percent of screen to increment by when resizing panes
+     delta   = 3/100
+------------------------------------------------------------------------
+-- Window rules:
+------------------------------------------------------------------------
+
+myManageHook = composeAll
+    [ className =? "Gimp"           --> doFloat
+    , className =? "mpv"              --> doCenterFloat
+    , className =? "Firefox" <&&> resource =? "Toolkit" --> doFloat -- firefox pip
+    , resource  =? "desktop_window" --> doIgnore
+    , resource  =? "kdesktop"       --> doIgnore 
+    , isFullscreen --> doFullFloat
+    ] <+> namedScratchpadManageHook myScratchpads
+    
+------------------------------------------------------------------------
+-- Key bindings. Add, modify or remove key bindings here.
+------------------------------------------------------------------------
+
+myKeys =
+    [("M-" ++ m ++ k, windows $ f i)
+        | (i, k) <- zip (myWorkspaces) (map show [1 :: Int ..])
+        , (f, m) <- [(W.view, ""), (W.shift, "S-"), (copy, "S-C-")]]
+    ++
+    [("S-C-a", windows copyToAll)   -- copy window to all workspaces
+     , ("S-C-z", killAllOtherCopies)  -- kill copies of window on other workspaces
+     , ("M-a", sendMessage MirrorExpand)
+     , ("M-z", sendMessage MirrorShrink)
+     , ("M-s", sendMessage ToggleStruts)
+     , ("M-f", sendMessage $ JumpToLayout "Full")
+     , ("M-t", sendMessage $ JumpToLayout "Tall")
+     , ("M-g", sendMessage $ JumpToLayout "Grid")
+     , ("M-b", sendMessage $ JumpToLayout "BSP")
+     , ("M-p", spawn "rofi -show run") -- rofi
+     , ("S-M-t", withFocused $ windows . W.sink) -- flatten floating window to tiled
+     , ("M-C-<Space>", namedScratchpadAction myScratchpads "terminal")
+     , ("M-C-<Return>", namedScratchpadAction myScratchpads "emacs-scratch")
+    ]
+    
+------------------------------------------------------------------------
+-- scratchpads
+------------------------------------------------------------------------
+
+myScratchpads = [ NS "terminal" spawnTerm findTerm manageTerm
+              , NS "emacs-scratch" spawnEmacsScratch findEmacsScratch manageEmacsScratch
+                ] 
+    where
+    role = stringProperty "WM_WINDOW_ROLE"
+    spawnTerm = myTerminal ++  " -name scratchpad"
+    findTerm = resource =? "scratchpad"
+    manageTerm = nonFloating
+    findEmacsScratch = title =? "emacs-scratch"
+    spawnEmacsScratch = "emacsclient -a='' -nc --frame-parameters='(quote (name . \"emacs-scratch\"))'"
+    manageEmacsScratch = nonFloating
+
+------------------------------------------------------------------------
+-- main
+------------------------------------------------------------------------
 
 main = do
-  xmproc <- spawnPipe "/usr/bin/xmobar /home/mindaugas/.xmobarrc"
-  xmonad $ ewmh def
-    { terminal = "urxvtc"
-    , modMask = mod4Mask
-    , normalBorderColor = "#7c818c"
-    , focusedBorderColor = "#5294e2"
-    , borderWidth = 2
-    , manageHook = manageDocks 
-    , layoutHook = avoidStruts $ myLayouts
-    , handleEventHook = fullscreenEventHook <+> docksEventHook
-    , logHook = dynamicLogWithPP xmobarPP
-                { ppOutput = hPutStrLn xmproc
-                , ppCurrent = xmobarColor "#5294e2" "" . wrap "[" "]"
-                , ppUrgent = xmobarColor "red" "" . wrap "*" "*"
-                , ppLayout = xmobarColor "#7c818c" ""
-                , ppTitle = xmobarColor "#5294e2" "" . shorten 50
-                , ppSep = "<fc=#7c818c> | </fc>"
-                }
-    }
-
-     `additionalKeysP` -- Add some extra key bindings:
-      [ 
-        ("M-S-q",   confirmPrompt myXPConfig "exit" (io exitSuccess))
-      , ("M-p",     shellPrompt myXPConfig)
-      , ("M-<Esc>", sendMessage (Toggle "Full"))
-      , ("M-S-g",   gotoMenu)
-      , ("M-S-b",   bringMenu)
-      , ("M-w", spawn "/home/mindaugas/.scripts/screeny")
-      , ("M-r", spawn "/home/mindaugas/.scripts/shutdown.sh")
-      , ("M-x", spawn "/home/mindaugas/.scripts/mpdmenu")
-      , ("M-g", withFocused toggleBorder)
-      , ("M-M1-<Left>",    sendMessage $ ExpandTowards L)
-      , ("M-M1-<Right>",   sendMessage $ ShrinkFrom L)
-      , ("M-M1-<Up>",      sendMessage $ ExpandTowards U)
-      , ("M-M1-<Down>",    sendMessage $ ShrinkFrom U)
-      , ("M-M1-C-<Left>",  sendMessage $ ShrinkFrom R)
-      , ("M-M1-C-<Right>", sendMessage $ ExpandTowards R)
-      , ("M-M1-C-<Up>",    sendMessage $ ShrinkFrom D)
-      , ("M-M1-C-<Down>",  sendMessage $ ExpandTowards D)
-      , ("M-s",            sendMessage $ Swap)
-      , ("M-M1-s",         sendMessage $ Rotate)
-      ]
---------------------------------------------------------------------------------
--- | Customize layouts.
---
--- This layout configuration uses two primary layouts, 'ResizableTall'
--- and 'BinarySpacePartition'.  You can also use the 'M-<Esc>' key
--- binding defined above to toggle between the current layout and a
--- full screen layout.
-myLayouts = toggleLayouts (Full) others
-  where
-others = ResizableTall 1 (1.5/100) (3/5) [] ||| emptyBSP
-
-myXPConfig = def
-  { position          = Top
-  , alwaysHighlight   = True
-  ,fgColor            = "#7c818c"
-  , bgColor           = "#383c4a"
-  , bgHLight    = "#5294e2"
-  , fgHLight    = "#383c4a"
-  , promptBorderWidth = 0
-  , font              = "xft:Liberation Sans:size=10"
-  }
+    xmproc <- spawnPipe "xmobar $HOME/.xmonad/xmobarrc"
+    xmonad $ withUrgencyHook LibNotifyUrgencyHook $ ewmh desktopConfig
+        { manageHook = ( isFullscreen --> doFullFloat ) <+> manageDocks <+> myManageHook <+> manageHook desktopConfig
+        , layoutHook         = myLayout
+        , handleEventHook    = handleEventHook desktopConfig
+        , workspaces         = myWorkspaces
+        , borderWidth        = myBorderWidth
+        , terminal           = myTerminal
+        , modMask            = myModMask
+        , normalBorderColor  = myNormalBorderColor
+        , focusedBorderColor = myFocusedBorderColor
+        , logHook = dynamicLogWithPP xmobarPP  
+                        { ppOutput = \x -> hPutStrLn xmproc x >> hPutStrLn xmproc x
+                        , ppCurrent = xmobarColor myppCurrent "" . wrap "[" "]" -- Current workspace in xmobar
+                        , ppVisible = xmobarColor myppVisible ""                -- Visible but not current workspace
+                        , ppHidden = xmobarColor myppHidden "" . wrap "+" ""   -- Hidden workspaces in xmobar
+                        , ppHiddenNoWindows = xmobarColor  myppHiddenNoWindows ""        -- Hidden workspaces (no windows)
+                        , ppTitle = xmobarColor  myppTitle "" . shorten 80     -- Title of active window in xmobar
+                        , ppSep =  "<fc=#586E75> | </fc>"                     -- Separators in xmobar
+                        , ppUrgent = xmobarColor  myppUrgent "" . wrap "!" "!"  -- Urgent workspace
+                        , ppExtras  = [windowCount]                           -- # of windows current workspace
+                        , ppOrder  = \(ws:l:t:ex) -> [ws,l]++ex++[t]
+                        } >> updatePointer (0.25, 0.25) (0.25, 0.25)
+          }
+          `additionalKeysP` myKeys

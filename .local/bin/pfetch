@@ -129,7 +129,7 @@ get_os() {
 
     case $os in
         Linux*)
-            # Some Linux disttributions (which are based on others)
+            # Some Linux distributions (which are based on others)
             # fail to identify as they **do not** change the upstream
             # distributions identification packages or files.
             #
@@ -153,6 +153,12 @@ get_os() {
             # from their respective upstreams.
             if command -v lsb_release; then
                 distro=$(lsb_release -sd)
+
+            # Android detection works by checking for the existence of
+            # the follow two directories. I don't think there's a simpler
+            # method than this.
+            elif [ -d /system/app ] && [ -d /system/priv-app ]; then
+                distro="Android $(getprop ro.build.version.release)"
 
             else
                 # This used to be a simple '. /etc/os-release' but I believe
@@ -337,9 +343,9 @@ get_host() {
         # found in the "blacklist" below. Only non-matches are appended
         # to the final host string.
         case $word in
-            To      | [Bb]e      | [Ff]illed | by     | O.E.M.  | OEM  |\
+            To      | [Bb]e      | [Ff]illed | [Bb]y  | O.E.M.  | OEM  |\
             Not     | Applicable | Specified | System | Product | Name |\
-            Version | Undefined  | Default   | string | INVALID | �    )
+            Version | Undefined  | Default   | string | INVALID | �    | os )
                 continue
             ;;
         esac
@@ -432,18 +438,21 @@ get_pkgs() {
             Linux*)
                 # Commands which print packages one per line.
                 has bonsai     && bonsai list
+                has crux       && pkginfo -i
                 has pacman-key && pacman -Qq
                 has dpkg       && dpkg-query -f '.\n' -W
                 has rpm        && rpm -qa
                 has xbps-query && xbps-query -l
                 has apk        && apk info
                 has guix       && guix package --list-installed
+                has opkg       && opkg list-installed
 
                 # Directories containing packages.
                 has kiss       && printf '%s\n' /var/db/kiss/installed/*/
                 has brew       && printf '%s\n' "$(brew --cellar)/"*
                 has emerge     && printf '%s\n' /var/db/pkg/*/*/
                 has pkgtool    && printf '%s\n' /var/log/packages/*
+                has eopkg      && printf '%s\n' /var/lib/eopkg/package/*
 
                 # 'nix' requires two commands.
                 has nix-store  && {
@@ -455,10 +464,24 @@ get_pkgs() {
             Darwin*)
                 # Commands which print packages one per line.
                 has pkgin      && pkgin list
-                has port       && port installed
 
                 # Directories containing packages.
                 has brew       && printf '%s\n' /usr/local/Cellar/*
+
+                # 'port' prints a single line of output to 'stdout'
+                # when no packages are installed and exits with
+                # success causing a false-positive of 1 package
+                # installed.
+                #
+                # 'port' should really exit with a non-zero code
+                # in this case to allow scripts to cleanly handle
+                # this behavior.
+                has port       && {
+                    pkg_list=$(port installed)
+
+                    [ "$pkg_list" = "No ports are installed." ] ||
+                        printf '%s\n' "$pkg_list"
+                }
             ;;
 
             FreeBSD*|DragonFly*)
@@ -488,7 +511,7 @@ get_pkgs() {
         esac | wc -l
     `
 
-    log pkgs "${packages:-?}" >&6
+    [ "$packages" -gt 1 ] && log pkgs "$packages" >&6
 }
 
 get_memory() {
@@ -531,7 +554,7 @@ get_memory() {
             # split is used on '.' to filter it out.
             while IFS=:. read -r key val; do
                 case $key in
-                    *wired*|*active*|*occupied*)
+                    *' wired'*|*' active'*|*' occupied'*)
                         mem_used=$((mem_used + ${val:-0}))
                     ;;
                 esac
@@ -688,7 +711,7 @@ get_wm() {
             # atom..
             #
             # List of window managers which fail to set the name atom:
-            # catwm, fvwm, dwm, 2bwm and monster.
+            # catwm, fvwm, dwm, 2bwm, monster, wmaker and sowm [mine! ;)].
             #
             # The final downside to this approach is that it does _not_
             # support Wayland environments. The only solution which supports
@@ -751,8 +774,50 @@ get_wm() {
                 # To extract the name, everything before '_NET_WM_NAME = \"'
                 # is removed and everything after the next '"' is removed.
                 wm=$(xprop -id "$id" -notype -len 25 -f _NET_WM_NAME 8t)
-                wm=${wm##*_NET_WM_NAME = \"}
-                wm=${wm%%\"*}
+
+                # Handle cases of a window manager _not_ populating the
+                # '_NET_WM_NAME' atom. Display nothing in this case.
+                case $wm in
+                    *'_NET_WM_NAME = '*)
+                        wm=${wm##*_NET_WM_NAME = \"}
+                        wm=${wm%%\"*}
+                    ;;
+
+                    *)
+                        # Fallback to checking the process list
+                        # for the select few window managers which
+                        # don't set '_NET_WM_NAME'.
+                        #
+                        # TODO: This is currently limited to 'grep'
+                        #       implementations providing the '-o'
+                        #       flag. This needs to be replaced with
+                        #       a command which searches for a list
+                        #       of strings and returns _only_ the
+                        #       first match's contents (also ensuring
+                        #       the search itself isn't matched).
+                        #
+                        #       A generic parser isn't possible as
+                        #       the output of 'ps' is _not_ the same
+                        #       between implementations and across
+                        #       operating systems.
+                        #
+                        #       The simple search method above works
+                        #       regardless of 'ps' implementation.
+                        #
+                        # Disable the shellcheck warning about using
+                        # 'pgrep' instead of 'ps | grep' as 'pgrep'
+                        # is not always available.
+                        # shellcheck disable=2009
+                        wm=$(ps x | grep -o \
+                                         -e '[c]atwm' \
+                                         -e '[f]vwm' \
+                                         -e '[d]wm' \
+                                         -e '[2]bwm' \
+                                         -e '[m]onsterwm' \
+                                         -e '[w]maker' \
+                                         -e '[s]owm')
+                    ;;
+                esac
             }
         ;;
     esac
@@ -858,13 +923,13 @@ get_ascii() {
 
         [Aa]rch*)
             read_ascii 4 <<-EOF
-				${c6}      /\\
-				     /^^\\
-				    /\\   \\
-				   /${c7}  __  \\
-				  /  (  )  \\
-				 / __|  |__\\\\
-				///        \\\\\\
+			${c6}       /\\
+				      /  \\
+				     /\\   \\
+			${c4}    /      \\
+				   /   ,,   \\
+				  /   |  |  -\\
+				 /_-''    ''-_\\
 			EOF
         ;;
 
@@ -953,13 +1018,12 @@ get_ascii() {
 
         [Ff]ree[Bb][Ss][Dd]*)
             read_ascii 1 <<-EOF
-				${c1} /\\ _____ /\\
-				 \\_)     (_/
-				 /         \\
+				${c1}/\\,-'''''-,/\\
+				\\_)       (_/
 				|           |
 				|           |
-				 \         /
-				  --_____--
+				 ;         ;
+				  '-_____-'
 			EOF
         ;;
 
@@ -1274,7 +1338,7 @@ get_ascii() {
     # This ensures that any variables defined in the while loop
     # are still accessible in the script.
     done <<-EOF
-		$(printf %s "$ascii" | sed 's/\[3.m//g')
+ 		$(printf %s "$ascii" | sed 's/\[3.m//g')
 	EOF
 
     # Add a gap between the ascii art and the information.
@@ -1296,6 +1360,11 @@ main() {
     # Hide 'stdout' and selectively print to it using '>&6'.
     # This gives full control over what it displayed on the screen.
     exec 6>&1 >/dev/null
+
+    # Ensure that the 'TMPDIR' is writable as heredocs use it and
+    # fail without the write permission. This was found to be the
+    # case on Android where the temporary directory requires root.
+    [ -w "${TMPDIR:-/tmp}" ] || export TMPDIR=~
 
     # Generic color list.
     # Disable warning about unused variables.

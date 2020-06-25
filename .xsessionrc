@@ -2,13 +2,15 @@
 
 #Apps
 
-
 setxkbmap -layout "us,lt,ru" -option "grp:ctrl_shift_toggle"
 
 
-nitrogen --set-tiled --random ~/Git/My-wallpapers
+xsetroot -cursor_name left_ptr 
+
+
+nitrogen --restore
+
+
+urxvtd &
 
 compton --config ~/.config/compton/compton.conf &
-
-
-xsetroot -cursor_name left_ptr
