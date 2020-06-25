@@ -4,6 +4,6 @@ Screenshots
 
 ![Screenshot](screen.png?raw=true "Clear")
 ![Screenshot](screen_1.png?raw=true "Terminals")
-![Screenshot](screen_2.png?raw=true "Rofi")
+
 
 
